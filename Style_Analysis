@@ -1,0 +1,64 @@
+#import
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.optimize import minimize, LinearConstraint
+from scipy import optimize
+from scipy import stats
+import seaborn as sns
+
+#Strategic Style Analysis
+def select_data(df, name):
+    fund_name=str(name)
+    df=pd.DataFrame(df)
+    fund=df[fund_name].values
+    df= df.drop([fund_name], axis=1)
+    A=np.array(df)
+    return A, fund
+
+def Tracking_Error_vol(W, dx, fund):
+    A=np.array(dx)
+    V=A@W
+    Tracking_error= np.subtract(fund,V)
+    TEV= np.std(Tracking_error)
+    return TEV
+
+def Initial_weights(dx):
+    dx=pd.DataFrame(dx)
+    W = np.array([1/len(dx.columns)]*len(dx.columns))
+    return W
+
+def min_TEV(df, name):
+    cons = [{"type": "ineq", "fun": lambda w: 1 - sum(w)}, {"type": "ineq", "fun": lambda w: sum(w) - 1}]
+    b    = (0.0, 1.0) 
+    bnds = (b,)*len(Initial_weights(select_data(df, name)[0]))
+    res=optimize.minimize(Tracking_Error_vol, Initial_weights(select_data(df, name)[0]) , args=(select_data(df, name)), constraints=cons, bounds= bnds)
+    return res.x
+
+def Strategic_style_analysis(df, name):
+    wieghts=min_TEV(df, name)
+    df=df.drop([name], axis=1)
+    names_funds=list(df.columns)
+    df_out=pd.DataFrame(wieghts,index=names_funds,columns=['Weights']).T
+    return df_out
+    
+    
+#Tactical Style Analysis
+
+def rolling_style_analysis(df, name):
+    name = str(name)
+    df = pd.DataFrame(df)
+    data_conteiner = {}
+    names = list(df.columns.drop(name))
+    i=0
+    df_small=df.iloc[i:i+36]
+    while len(df_small)==36:
+        new_w=min_TEV(df_small, name)
+        month=df.index[i]
+        data_conteiner[month]=new_w
+        i+=1
+        df_small=df.iloc[i:i+36]
+    else:
+        df_out = pd.DataFrame(data_conteiner).T
+        df_out.columns = names
+    return df_out
